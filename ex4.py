@@ -1,9 +1,7 @@
 import torch
 import torch.nn as nn
 from gcommand_loader import GCommandLoader
-#import torch.nn.functional as F
-from torch import optim
-#from data_loader_tester import load_data
+#from torch import optim
 
 
 class ConvNet(nn.Module):
@@ -33,11 +31,6 @@ class ConvNet(nn.Module):
         output = self.fullyConn1(output)
         output = self.fullyConn2(output)
         return output
-
-
-
-
-
 
 
 # class FirstNet(nn.Module):
