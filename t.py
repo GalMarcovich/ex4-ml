@@ -2,12 +2,6 @@ import torch.nn as nn
 from gcommand_loader import GCommandLoader
 import torch
 
-# Hyperparameters
-num_epochs = 10
-num_classes = 30
-image_size = 101 * 161
-learning_rate = 0.01
-
 
 class ConvNet(nn.Module):
 
@@ -53,8 +47,15 @@ class ConvNet(nn.Module):
         return output
 
 
+def do_back_propagation(loss):
+    # Back-propagation and perform Adam optimisation
+    optimizer.zero_grad()
+    loss.backward()
+    optimizer.step()
+
+
 # Train the model
-def train_data(train_loader, optimizer, criterion, model):
+def train_data(train_loader, criterion, optimizer, model):
     model.train()
     total_step = len(train_loader)
     loss_list = []
@@ -66,10 +67,7 @@ def train_data(train_loader, optimizer, criterion, model):
             loss = criterion(outputs, labels)
             loss_list.append(loss.item())
 
-            # Back-propagation and perform Adam optimisation
-            optimizer.zero_grad()
-            loss.backward()
-            optimizer.step()
+            do_back_propagation(loss)
 
             # Track the accuracy
             total = labels.size(0)
@@ -83,53 +81,97 @@ def train_data(train_loader, optimizer, criterion, model):
                               (correct / total) * 100))
 
 
+def print_func(correct, total):
+    print('Test Accuracy of the model on the 10000 test images: {} %'.format((correct / total) * 100))
+
 # Test the model
 def test_data(test_loader, model):
     print("in test_data")
     # Test the model
     model.eval()
     with torch.no_grad():
-        correct = 0
         total = 0
+        correct = 0
         for images, labels in test_loader:
             outputs = model(images)
             _, predicted = torch.max(outputs.data, 1)
             total += labels.size(0)
             correct += (predicted == labels).sum().item()
-        print('Test Accuracy of the model on the 10000 test images: {} %'.format((correct / total) * 100))
+        print_func(correct, total)
 
 
-def write_to_file(self, test_x, model):
+# Write to file the results of the test
+def write_to_file(test_loader, test_x, model):
+    list_commands = []
+    list_y_hat = []
+    enter = '\n'
+    comma = ','
+    zero = 0
+    one = 1
+
     file = open("test_y", "w")
-    for images, labels in test_x:
-        outputs = model(images)
+
+    # the path of each file
+    for x in test_x:
+        x = x[zero]
+        x = x.split("/")
+        y = x[len(x)-one]
+        list_commands.append(y)
+
+    # the prediction of each file
+    for voices, labels in test_loader:
+        outputs = model(voices)
         _, y_hat = torch.max(outputs.data, 1)
-        # file.write( example + ','+ str(y_hat) + '\n')
+        list_y_hat.extend(y_hat.tolist())
+
+    # write each path of file and it's prediction into the file
+    for x, y in zip(list_commands, list_y_hat):
+        file.write(x + comma + str(y) + enter)
     file.close()
 
 
 if __name__ == "__main__":
+    # Hyperparameters
+    learning_rate = 0.001
+    num_epochs = 10
+    num_classes = 30
+    len_image = 101
+    len_image_2 = 161
+    image_size = len_image * len_image_2
+    size_of_batch = 100
+
+    # get the data-set
     dataset = GCommandLoader('./ML4_dataset/data/train')
 
     train_loader = torch.utils.data.DataLoader(
-        dataset, batch_size=100, shuffle=True,
+        dataset, batch_size=size_of_batch, shuffle=True,
         num_workers=20, pin_memory=True, sampler=None)
 
+    # get the validation-set
     validation_set = GCommandLoader('./ML4_dataset/data/valid')
 
     valid_loader = torch.utils.data.DataLoader(
-        validation_set, batch_size=100, shuffle=None,
+        validation_set, batch_size=size_of_batch, shuffle=None,
+        num_workers=20, pin_memory=True, sampler=None)
+
+    # get the test-set
+    test_set = GCommandLoader('./ML4_dataset/data/test')
+
+    test_loader = torch.utils.data.DataLoader(
+        test_set, batch_size=size_of_batch, shuffle=None,
         num_workers=20, pin_memory=True, sampler=None)
 
     model = ConvNet()
-    # model.write_to_file(valid_loader, model)
 
     # Loss and optimizer
     criterion = nn.CrossEntropyLoss()  # calculate the loss function
     optimizer = torch.optim.Adam(model.parameters(), lr=0.001)  # for the back-propagation
 
     # train the model
-    train_data(train_loader, optimizer, criterion, model)
+    train_data(train_loader, criterion, optimizer, model)
 
     # test the model
     test_data(valid_loader, model)
+
+    # write to file the results of the test
+    write_to_file(test_loader, test_set.spects, model)
